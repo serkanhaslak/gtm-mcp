@@ -1,11 +1,12 @@
 import http from "node:http";
+import fs from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { getRequestListener } from "@hono/node-server";
 import { loadEnv } from "./utils/loadEnv.js";
-import { apisHandler } from "./utils/apisHandler.js";
+import { apisHandler, getCredentialsFilePath } from "./utils/apisHandler.js";
 import { createMcpServer } from "./index.js";
-import { lookupAccessToken } from "./oauth/store.js";
+import { refreshUpstreamAuthToken } from "./utils/authorizeUtils.js";
 import type { McpAgentPropsModel } from "./models/McpAgentModel.js";
 import { log } from "./utils/log.js";
 
@@ -16,8 +17,8 @@ loadEnv();
 const REQUIRED_ENV = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
-  "COOKIE_ENCRYPTION_KEY",
   "HOST_URL",
+  "MCP_API_KEY",
 ] as const;
 
 for (const key of REQUIRED_ENV) {
@@ -30,12 +31,78 @@ for (const key of REQUIRED_ENV) {
 const env: AppEnv = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
-  COOKIE_ENCRYPTION_KEY: process.env.COOKIE_ENCRYPTION_KEY!,
   HOST_URL: process.env.HOST_URL!,
+  MCP_API_KEY: process.env.MCP_API_KEY!,
+  CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || "/data",
   HOSTED_DOMAIN: process.env.HOSTED_DOMAIN,
 };
 
-// Session management
+// --- Google Credentials Management ---
+
+interface GoogleCredentials {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  name: string;
+  email: string;
+}
+
+function loadCredentials(): GoogleCredentials | null {
+  const credPath = getCredentialsFilePath();
+  if (!fs.existsSync(credPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(credPath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function saveCredentials(creds: GoogleCredentials): void {
+  const credPath = getCredentialsFilePath();
+  fs.writeFileSync(credPath, JSON.stringify(creds, null, 2));
+}
+
+async function getValidCredentials(): Promise<GoogleCredentials | null> {
+  const creds = loadCredentials();
+  if (!creds) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const REFRESH_THRESHOLD = 300; // 5 minutes
+
+  if (creds.expiresAt > now + REFRESH_THRESHOLD) {
+    return creds;
+  }
+
+  // Token expired or expiring soon — refresh it
+  if (!creds.refreshToken) return null;
+
+  log("Refreshing Google access token...");
+  const [token, err] = await refreshUpstreamAuthToken({
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    refreshToken: creds.refreshToken,
+    upstreamUrl: "https://oauth2.googleapis.com/token",
+  });
+
+  if (!token) {
+    log("Failed to refresh Google token:", err);
+    return null;
+  }
+
+  const updated: GoogleCredentials = {
+    ...creds,
+    accessToken: token.access_token,
+    expiresAt: now + token.expires_in,
+    refreshToken: token.refresh_token || creds.refreshToken,
+  };
+
+  saveCredentials(updated);
+  log("Google access token refreshed successfully");
+  return updated;
+}
+
+// --- Session Management ---
+
 interface McpSession {
   transport: StreamableHTTPServerTransport;
   server: McpServer;
@@ -44,7 +111,6 @@ interface McpSession {
 
 const sessions = new Map<string, McpSession>();
 
-// Session cleanup: remove sessions inactive for 30 minutes
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const sessionCleanup = setInterval(
@@ -54,18 +120,18 @@ const sessionCleanup = setInterval(
       if (now - session.lastActivity > SESSION_TIMEOUT_MS) {
         session.transport.close?.();
         sessions.delete(id);
-        log(`Session ${id} expired and cleaned up`);
+        log(`Session ${id} expired`);
       }
     }
   },
   5 * 60 * 1000,
 );
-sessionCleanup.unref(); // Allow process to exit
+sessionCleanup.unref();
 
-// Hono listener for non-MCP routes
+// --- HTTP Server ---
+
 const honoListener = getRequestListener(apisHandler.fetch);
 
-// HTTP server
 const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
@@ -80,7 +146,6 @@ const httpServer = http.createServer(async (req, res) => {
       }
     }
   } else {
-    // Delegate to Hono for OAuth endpoints, static pages, etc.
     honoListener(req, res);
   }
 });
@@ -102,40 +167,36 @@ async function handleMcpRequest(
     return;
   }
 
-  // Extract Bearer token
+  // Validate API key
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    const hostUrl = env.HOST_URL || `http://${req.headers.host}`;
-    res.writeHead(401, {
-      "Content-Type": "application/json",
-      "WWW-Authenticate": `Bearer resource_metadata="${hostUrl}/.well-known/oauth-protected-resource"`,
-    });
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({ error: "Missing Authorization: Bearer <API_KEY>" }),
+    );
+    return;
+  }
+
+  const apiKey = authHeader.slice(7);
+  if (apiKey !== env.MCP_API_KEY) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid API key" }));
+    return;
+  }
+
+  // Get Google credentials
+  const creds = await getValidCredentials();
+  if (!creds) {
+    res.writeHead(503, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        error: "unauthorized",
-        error_description: "Missing or invalid Authorization header",
+        error: "Google credentials not configured. Visit /setup first.",
       }),
     );
     return;
   }
 
-  const bearerToken = authHeader.slice(7);
-  const tokenData = lookupAccessToken(bearerToken);
-
-  if (!tokenData) {
-    res.writeHead(401, {
-      "Content-Type": "application/json",
-    });
-    res.end(
-      JSON.stringify({
-        error: "invalid_token",
-        error_description: "Invalid or expired access token",
-      }),
-    );
-    return;
-  }
-
-  // Check for existing session (GET for SSE resumption, POST for messages)
+  // Check for existing session
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
   if (sessionId && sessions.has(sessionId)) {
@@ -145,16 +206,14 @@ async function handleMcpRequest(
     return;
   }
 
-  // For GET requests without a valid session, return 405
+  // For GET without valid session, return 405
   if (req.method === "GET") {
     res.writeHead(405, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ error: "Method not allowed without valid session" }),
-    );
+    res.end(JSON.stringify({ error: "No valid session" }));
     return;
   }
 
-  // New session: create transport and MCP server
+  // New session
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     onsessioninitialized: (sid: string) => {
@@ -163,18 +222,27 @@ async function handleMcpRequest(
         server: mcpServer,
         lastActivity: Date.now(),
       });
-      log(`New MCP session created: ${sid}`);
+      log(`New MCP session: ${sid} (${creds.name})`);
     },
   });
 
-  const props: McpAgentPropsModel = tokenData.props;
+  const props: McpAgentPropsModel = {
+    userId: creds.email,
+    name: creds.name,
+    email: creds.email,
+    accessToken: creds.accessToken,
+    refreshToken: creds.refreshToken,
+    expiresAt: creds.expiresAt,
+    clientId: env.GOOGLE_CLIENT_ID,
+  };
+
   const mcpServer = createMcpServer(props, env);
 
   transport.onclose = () => {
     const sid = transport.sessionId;
     if (sid) {
       sessions.delete(sid);
-      log(`MCP session closed: ${sid}`);
+      log(`Session closed: ${sid}`);
     }
   };
 
@@ -186,5 +254,14 @@ async function handleMcpRequest(
 const PORT = parseInt(process.env.PORT || "3000", 10);
 httpServer.listen(PORT, () => {
   console.log(`GTM MCP Server running on port ${PORT}`);
-  console.log(`Host URL: ${env.HOST_URL || `http://localhost:${PORT}`}`);
+  console.log(`Host URL: ${env.HOST_URL}`);
+
+  const creds = loadCredentials();
+  if (creds) {
+    console.log(`Google account: ${creds.email}`);
+  } else {
+    console.log(
+      `No Google credentials found. Visit ${env.HOST_URL}/setup to configure.`,
+    );
+  }
 });

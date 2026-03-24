@@ -4,6 +4,5 @@ export * from "./createErrorResponse.js";
 export * from "./getTagManagerClient.js";
 export * from "./authorizeUtils.js";
 export * from "./apisHandler.js";
-export * from "./workersOAuthUtils.js";
 export * from "./paginationUtils.js";
 export * from "./versionPaginationUtils.js";

@@ -1,8 +1,9 @@
 interface AppEnv {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
-  COOKIE_ENCRYPTION_KEY: string;
   HOST_URL: string;
+  MCP_API_KEY: string;
+  CREDENTIALS_PATH?: string;
   HOSTED_DOMAIN?: string;
   PORT?: string;
 }
