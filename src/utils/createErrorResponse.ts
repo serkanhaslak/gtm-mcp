@@ -1,6 +1,6 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { TAG_MANAGER_REMOVE_MCP_SERVER_DATA } from "../constants/tools";
-import { log } from "./log";
+import { TAG_MANAGER_REMOVE_MCP_SERVER_DATA } from "../constants/tools.js";
+import { log } from "./log.js";
 
 export function createErrorResponse(
   message: string,

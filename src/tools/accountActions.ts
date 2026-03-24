@@ -1,8 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
-import { AccountSchema } from "../schemas/AccountSchema";
-import { createErrorResponse, getTagManagerClient, log } from "../utils";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
+import { AccountSchema } from "../schemas/AccountSchema.js";
+import {
+  createErrorResponse,
+  getTagManagerClient,
+  log,
+} from "../utils/index.js";
 
 const PayloadSchema = AccountSchema.omit({
   accountId: true,

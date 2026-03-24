@@ -1,5 +1,5 @@
 import { tagmanager_v2 } from "googleapis";
-import { paginateArray } from "./paginationUtils";
+import { paginateArray } from "./paginationUtils.js";
 import Schema$ContainerVersion = tagmanager_v2.Schema$ContainerVersion;
 
 export const ITEMS_PER_PAGE = 20;

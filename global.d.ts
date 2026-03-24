@@ -1,14 +1,8 @@
-/* eslint-disable */
-
-declare namespace Cloudflare {
-  interface Env {
-    OAUTH_KV: KVNamespace;
-    GOOGLE_CLIENT_ID: "";
-    GOOGLE_CLIENT_SECRET: "";
-    COOKIE_ENCRYPTION_KEY: "";
-    HOSTED_DOMAIN: "";
-    WORKER_HOST: "";
-    MCP_OBJECT: DurableObjectNamespace<import("./src/index").GoogleTagManagerMCPServer>;
-  }
+interface AppEnv {
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  COOKIE_ENCRYPTION_KEY: string;
+  HOST_URL: string;
+  HOSTED_DOMAIN?: string;
+  PORT?: string;
 }
-interface Env extends Cloudflare.Env {}

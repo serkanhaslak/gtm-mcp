@@ -1,22 +1,22 @@
-import { accountActions } from "./accountActions";
-import { builtInVariableActions } from "./builtInVariableActions";
-import { clientActions } from "./clientActions";
-import { containerActions } from "./containerActions";
-import { destinationActions } from "./destinationActions";
-import { environmentActions } from "./environmentActions";
-import { folderActions } from "./folderActions";
-import { gtagConfigActions } from "./gtagConfigActions";
-import { removeMCPServerData } from "./removeMCPServerData";
-import { tagActions } from "./tagActions";
-import { templateActions } from "./templateActions";
-import { transformationActions } from "./transformationActions";
-import { triggerActions } from "./triggerActions";
-import { userPermissionActions } from "./userPermissionActions";
-import { variableActions } from "./variableActions";
-import { versionHeaderActions } from "./versionHeaderActions";
-import { versionActions } from "./versionActions";
-import { workspaceActions } from "./workspaceActions";
-import { zoneActions } from "./zoneActions";
+import { accountActions } from "./accountActions.js";
+import { builtInVariableActions } from "./builtInVariableActions.js";
+import { clientActions } from "./clientActions.js";
+import { containerActions } from "./containerActions.js";
+import { destinationActions } from "./destinationActions.js";
+import { environmentActions } from "./environmentActions.js";
+import { folderActions } from "./folderActions.js";
+import { gtagConfigActions } from "./gtagConfigActions.js";
+import { removeMCPServerData } from "./removeMCPServerData.js";
+import { tagActions } from "./tagActions.js";
+import { templateActions } from "./templateActions.js";
+import { transformationActions } from "./transformationActions.js";
+import { triggerActions } from "./triggerActions.js";
+import { userPermissionActions } from "./userPermissionActions.js";
+import { variableActions } from "./variableActions.js";
+import { versionHeaderActions } from "./versionHeaderActions.js";
+import { versionActions } from "./versionActions.js";
+import { workspaceActions } from "./workspaceActions.js";
+import { zoneActions } from "./zoneActions.js";
 
 export const tools = [
   accountActions,

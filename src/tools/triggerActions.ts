@@ -1,14 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { tagmanager_v2 } from "googleapis";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
-import { TriggerSchema } from "../schemas/TriggerSchema";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
+import { TriggerSchema } from "../schemas/TriggerSchema.js";
 import {
   createErrorResponse,
   getTagManagerClient,
   log,
   paginateArray,
-} from "../utils";
+} from "../utils/index.js";
 import Schema$Trigger = tagmanager_v2.Schema$Trigger;
 
 const PayloadSchema = TriggerSchema.omit({

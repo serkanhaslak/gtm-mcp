@@ -170,7 +170,7 @@ export type Props = {
  */
 export async function handleTokenExchangeCallback(
   { grantType, props }: { grantType: string; props?: any },
-  env: Env,
+  env: AppEnv,
 ) {
   const now = Math.floor(Date.now() / 1000);
 

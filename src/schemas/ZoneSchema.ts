@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConditionSchema } from "./ConditionSchema";
+import { ConditionSchema } from "./ConditionSchema.js";
 
 /**
  * Zone resource schema fields (writable fields only)

@@ -1,13 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { tagmanager_v2 } from "googleapis";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
 import {
   createErrorResponse,
   getTagManagerClient,
   log,
   paginateArray,
-} from "../utils";
+} from "../utils/index.js";
 import Schema$BuiltInVariable = tagmanager_v2.Schema$BuiltInVariable;
 
 const ITEMS_PER_PAGE = 50;

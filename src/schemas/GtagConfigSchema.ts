@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ParameterSchema } from "./ParameterSchema";
+import { ParameterSchema } from "./ParameterSchema.js";
 
 export const GtagConfigSchema = z.object({
   accountId: z.string().describe("Google tag account ID."),

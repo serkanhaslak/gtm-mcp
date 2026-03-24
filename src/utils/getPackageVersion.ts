@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { log } from "./log";
+import { log } from "./log.js";
 
 export function getPackageVersion(): string {
   let packageVersion = "1.0.0"; // Default version as fallback

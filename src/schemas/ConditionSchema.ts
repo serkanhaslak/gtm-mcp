@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ParameterSchema } from "./ParameterSchema";
+import { ParameterSchema } from "./ParameterSchema.js";
 
 export const ConditionSchema = z.object({
   type: z

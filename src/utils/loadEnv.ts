@@ -1,6 +1,6 @@
 import path from "path";
 import dotenv from "dotenv";
-import { log } from "./log";
+import { log } from "./log.js";
 
 // Load environment variables from .env file if it exists
 export function loadEnv(): void {

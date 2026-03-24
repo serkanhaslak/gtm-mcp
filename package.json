@@ -1,35 +1,31 @@
 {
   "name": "google-tag-manager-mcp-server",
-  "version": "3.0.5",
+  "version": "3.1.0",
+  "type": "module",
   "description": "MCP server for Google Tag Manager",
   "license": "Apache-2.0",
   "author": "stape-io",
   "homepage": "https://github.com/stape-io/google-tag-manager-mcp-server",
-  "main": "dist/index.js",
-  "bin": {
-    "google-tag-manager-mcp-server": "./dist/index.js"
-  },
+  "main": "dist/server.js",
   "keywords": [
     "mcp",
     "modelcontextprotocol",
     "gtm",
     "stape"
   ],
+  "engines": {
+    "node": "20.x || 22.x"
+  },
   "scripts": {
-    "build": "tsc && chmod 755 dist/index.js",
-    "postinstall": "npm run build",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsc && node --watch dist/server.js",
     "lint": "eslint --ext .ts src",
-    "lint:fix": "eslint --ext .ts src --fix",
-    "prepublish": "npm run build",
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "cf-typegen": "wrangler types --include-env=false"
+    "lint:fix": "eslint --ext .ts src --fix"
   },
   "dependencies": {
-    "@cloudflare/workers-oauth-provider": "^0.0.10",
+    "@hono/node-server": "^1.14.1",
     "@modelcontextprotocol/sdk": "^1.18.1",
-    "agents": "^0.2.0",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.4.1",
     "googleapis": "^128.0.0",
@@ -45,10 +41,7 @@
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-prettier": "^5.2.6",
     "prettier": "^3.5.3",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.30.1",
-    "wrangler": "^4.16.0"
+    "typescript-eslint": "^8.30.1"
   }
 }

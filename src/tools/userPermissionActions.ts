@@ -1,14 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { tagmanager_v2 } from "googleapis";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
-import { UserPermissionSchema } from "../schemas/UserPermissionSchema";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
+import { UserPermissionSchema } from "../schemas/UserPermissionSchema.js";
 import {
   createErrorResponse,
   getTagManagerClient,
   log,
   paginateArray,
-} from "../utils";
+} from "../utils/index.js";
 import Schema$Account = tagmanager_v2.Schema$Account;
 import Schema$UserPermission = tagmanager_v2.Schema$UserPermission;
 

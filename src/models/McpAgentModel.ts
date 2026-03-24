@@ -10,5 +10,5 @@ export type McpAgentPropsModel = {
 
 export type McpAgentToolParamsModel = {
   props: McpAgentPropsModel;
-  env: Env;
+  env: AppEnv;
 };

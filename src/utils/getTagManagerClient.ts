@@ -1,6 +1,6 @@
 import { google } from "googleapis";
-import { log } from "./log";
-import { Props } from "./authorizeUtils";
+import { log } from "./log.js";
+import { Props } from "./authorizeUtils.js";
 
 type TagManagerClient = ReturnType<typeof google.tagmanager>;
 

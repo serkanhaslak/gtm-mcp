@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { BuiltInVariableSchema } from "./BuiltInVariableSchema";
-import { ClientSchema } from "./ClientSchema";
-import { ContainerSchema } from "./ContainerSchema";
-import { CustomTemplateSchema } from "./CustomTemplateSchema";
-import { FolderSchema } from "./FolderSchema";
-import { GtagConfigSchema } from "./GtagConfigSchema";
-import { TagSchema } from "./TagSchema";
-import { TransformationSchema } from "./TransformationSchema";
-import { TriggerSchema } from "./TriggerSchema";
-import { VariableSchema } from "./VariableSchema";
-import { ZoneSchema } from "./ZoneSchema";
+import { BuiltInVariableSchema } from "./BuiltInVariableSchema.js";
+import { ClientSchema } from "./ClientSchema.js";
+import { ContainerSchema } from "./ContainerSchema.js";
+import { CustomTemplateSchema } from "./CustomTemplateSchema.js";
+import { FolderSchema } from "./FolderSchema.js";
+import { GtagConfigSchema } from "./GtagConfigSchema.js";
+import { TagSchema } from "./TagSchema.js";
+import { TransformationSchema } from "./TransformationSchema.js";
+import { TriggerSchema } from "./TriggerSchema.js";
+import { VariableSchema } from "./VariableSchema.js";
+import { ZoneSchema } from "./ZoneSchema.js";
 
 export const ContainerVersionSchema = z.object({
   accountId: z.string().optional().describe("GTM Account ID."),

@@ -2,23 +2,23 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { tagmanager_v2 } from "googleapis";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
-import { BuiltInVariableSchema } from "../schemas/BuiltInVariableSchema";
-import { CustomTemplateSchema } from "../schemas/CustomTemplateSchema";
-import { FolderSchema } from "../schemas/FolderSchema";
-import { GtagConfigSchema } from "../schemas/GtagConfigSchema";
-import { TagSchema } from "../schemas/TagSchema";
-import { TransformationSchema } from "../schemas/TransformationSchema";
-import { TriggerSchema } from "../schemas/TriggerSchema";
-import { VariableSchema } from "../schemas/VariableSchema";
-import { WorkspaceSchema } from "../schemas/WorkspaceSchema";
-import { ZoneSchema } from "../schemas/ZoneSchema";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
+import { BuiltInVariableSchema } from "../schemas/BuiltInVariableSchema.js";
+import { CustomTemplateSchema } from "../schemas/CustomTemplateSchema.js";
+import { FolderSchema } from "../schemas/FolderSchema.js";
+import { GtagConfigSchema } from "../schemas/GtagConfigSchema.js";
+import { TagSchema } from "../schemas/TagSchema.js";
+import { TransformationSchema } from "../schemas/TransformationSchema.js";
+import { TriggerSchema } from "../schemas/TriggerSchema.js";
+import { VariableSchema } from "../schemas/VariableSchema.js";
+import { WorkspaceSchema } from "../schemas/WorkspaceSchema.js";
+import { ZoneSchema } from "../schemas/ZoneSchema.js";
 import {
   createErrorResponse,
   getTagManagerClient,
   log,
   paginateArray,
-} from "../utils";
+} from "../utils/index.js";
 import Schema$Entity = tagmanager_v2.Schema$Entity;
 import Schema$Workspace = tagmanager_v2.Schema$Workspace;
 
@@ -129,7 +129,8 @@ export const workspaceActions = (
       itemsPerPage,
     }): Promise<CallToolResult> => {
       log(
-        `Running tool: gtm_workspace for action '${action}' on account ${accountId}, container ${containerId}${workspaceId ? `, workspace ${workspaceId}` : ""
+        `Running tool: gtm_workspace for action '${action}' on account ${accountId}, container ${containerId}${
+          workspaceId ? `, workspace ${workspaceId}` : ""
         }`,
       );
 
@@ -375,7 +376,8 @@ export const workspaceActions = (
         }
       } catch (error) {
         return createErrorResponse(
-          `Error performing ${action} action on workspace${workspaceId ? ` ${workspaceId}` : ""
+          `Error performing ${action} action on workspace${
+            workspaceId ? ` ${workspaceId}` : ""
           } in container ${containerId} for account ${accountId}`,
           error,
         );

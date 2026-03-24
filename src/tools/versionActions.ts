@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { tagmanager_v2 } from "googleapis";
 import { z } from "zod";
-import { McpAgentToolParamsModel } from "../models/McpAgentModel";
-import { ContainerVersionSchema } from "../schemas/ContainerVersionSchema";
+import { McpAgentToolParamsModel } from "../models/McpAgentModel.js";
+import { ContainerVersionSchema } from "../schemas/ContainerVersionSchema.js";
 import {
   createErrorResponse,
   getTagManagerClient,
@@ -10,7 +10,7 @@ import {
   log,
   processVersionData,
   ResourceType,
-} from "../utils";
+} from "../utils/index.js";
 import Schema$ContainerVersion = tagmanager_v2.Schema$ContainerVersion;
 
 const PayloadSchema = ContainerVersionSchema.omit({
