@@ -1,8 +1,8 @@
-import http from "node:http";
-import fs from "node:fs";
+import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { getRequestListener } from "@hono/node-server";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { Hono } from "hono";
+import fs from "node:fs";
 import { loadEnv } from "./utils/loadEnv.js";
 import { apisHandler, getCredentialsFilePath } from "./utils/apisHandler.js";
 import { createMcpServer } from "./index.js";
@@ -67,13 +67,12 @@ async function getValidCredentials(): Promise<GoogleCredentials | null> {
   if (!creds) return null;
 
   const now = Math.floor(Date.now() / 1000);
-  const REFRESH_THRESHOLD = 300; // 5 minutes
+  const REFRESH_THRESHOLD = 300;
 
   if (creds.expiresAt > now + REFRESH_THRESHOLD) {
     return creds;
   }
 
-  // Token expired or expiring soon — refresh it
   if (!creds.refreshToken) return null;
 
   log("Refreshing Google access token...");
@@ -104,7 +103,7 @@ async function getValidCredentials(): Promise<GoogleCredentials | null> {
 // --- Session Management ---
 
 interface McpSession {
-  transport: StreamableHTTPServerTransport;
+  transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
   lastActivity: number;
 }
@@ -128,94 +127,61 @@ const sessionCleanup = setInterval(
 );
 sessionCleanup.unref();
 
-// --- HTTP Server ---
+// --- Hono App ---
 
-const honoListener = getRequestListener(apisHandler.fetch);
+const app = new Hono();
 
-const httpServer = http.createServer(async (req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host}`);
-
-  if (url.pathname === "/mcp") {
-    try {
-      await handleMcpRequest(req, res);
-    } catch (error) {
-      log("MCP handler error:", error);
-      if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Internal server error" }));
-      }
-    }
-  } else {
-    honoListener(req, res);
-  }
-});
-
-async function handleMcpRequest(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-): Promise<void> {
+// MCP endpoint — handles POST, GET, DELETE
+app.all("/mcp", async (c) => {
   // Handle DELETE — session teardown
-  if (req.method === "DELETE") {
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  if (c.req.method === "DELETE") {
+    const sessionId = c.req.header("mcp-session-id");
     if (sessionId && sessions.has(sessionId)) {
       const session = sessions.get(sessionId)!;
       await session.transport.close?.();
       sessions.delete(sessionId);
     }
-    res.writeHead(200);
-    res.end();
-    return;
+    return c.body(null, 200);
   }
 
   // Validate API key
-  const authHeader = req.headers.authorization;
+  const authHeader = c.req.header("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ error: "Missing Authorization: Bearer <API_KEY>" }),
-    );
-    return;
+    return c.json({ error: "Missing Authorization: Bearer <API_KEY>" }, 401);
   }
 
   const apiKey = authHeader.slice(7);
   if (apiKey !== env.MCP_API_KEY) {
-    res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Invalid API key" }));
-    return;
+    return c.json({ error: "Invalid API key" }, 401);
   }
 
   // Get Google credentials
   const creds = await getValidCredentials();
   if (!creds) {
-    res.writeHead(503, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Google credentials not configured. Visit /setup first.",
-      }),
+    return c.json(
+      { error: "Google credentials not configured. Visit /setup first." },
+      503,
     );
-    return;
   }
 
   // Check for existing session
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  const sessionId = c.req.header("mcp-session-id");
 
   if (sessionId && sessions.has(sessionId)) {
     const session = sessions.get(sessionId)!;
     session.lastActivity = Date.now();
-    await session.transport.handleRequest(req, res);
-    return;
+    return session.transport.handleRequest(c.req.raw);
   }
 
-  // For GET without valid session, return 405
-  if (req.method === "GET") {
-    res.writeHead(405, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "No valid session" }));
-    return;
+  // For GET without valid session
+  if (c.req.method === "GET") {
+    return c.json({ error: "No valid session" }, 405);
   }
 
   // New session
-  const transport = new StreamableHTTPServerTransport({
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
+    enableJsonResponse: true,
     onsessioninitialized: (sid: string) => {
       sessions.set(sid, {
         transport,
@@ -247,12 +213,15 @@ async function handleMcpRequest(
   };
 
   await mcpServer.connect(transport);
-  await transport.handleRequest(req, res);
-}
+  return transport.handleRequest(c.req.raw);
+});
+
+// Mount all other routes (OAuth shim, setup, static pages)
+app.route("/", apisHandler);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3000", 10);
-httpServer.listen(PORT, () => {
+serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`GTM MCP Server running on port ${PORT}`);
   console.log(`Host URL: ${env.HOST_URL}`);
 
