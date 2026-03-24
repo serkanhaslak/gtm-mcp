@@ -59,7 +59,7 @@ app.get("/.well-known/oauth-authorization-server", (c) => {
   return c.json({
     issuer: env.HOST_URL,
     authorization_endpoint: `${env.HOST_URL}/authorize`,
-    token_endpoint: `${env.HOST_URL}/token`,
+    token_endpoint: `${env.HOST_URL}/oauth/token`,
     registration_endpoint: `${env.HOST_URL}/register`,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
@@ -124,7 +124,7 @@ app.get("/authorize", (c) => {
 
 // --- Token Endpoint ---
 
-app.post("/token", async (c) => {
+app.post("/oauth/token", async (c) => {
   const env = getEnv();
 
   const contentType = c.req.header("content-type") || "";
