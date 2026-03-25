@@ -12,11 +12,7 @@ import { renderTermsPage } from "./renderTermsPage.js";
 
 const app = new Hono();
 
-// In-memory stores for OAuth shim (thin wrapper for Claude.ai compatibility)
-const registeredClients = new Map<
-  string,
-  { clientSecret: string; redirectUris: string[] }
->();
+// In-memory auth codes (short-lived, for OAuth flow)
 const authCodes = new Map<
   string,
   { clientId: string; redirectUri: string; expiresAt: number }
@@ -28,6 +24,8 @@ function getEnv(): AppEnv {
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
     HOST_URL: process.env.HOST_URL || "",
     MCP_API_KEY: process.env.MCP_API_KEY || "",
+    OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID || "",
+    OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET || "",
     CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || "/data",
     HOSTED_DOMAIN: process.env.HOSTED_DOMAIN,
   };
@@ -39,8 +37,8 @@ function getCredentialsFilePath(): string {
 }
 
 // ============================================================
-// OAuth 2.0 Shim — lets Claude.ai connect via standard OAuth
-// All tokens issued are the MCP_API_KEY (single-user server)
+// OAuth 2.0 Shim — gated by pre-configured client credentials
+// Only clients with the correct OAUTH_CLIENT_ID/SECRET can connect
 // ============================================================
 
 // --- Discovery ---
@@ -68,37 +66,29 @@ app.get("/.well-known/oauth-authorization-server", (c) => {
   });
 });
 
-// --- Dynamic Client Registration ---
+// --- Dynamic Client Registration (returns pre-configured credentials) ---
+// Claude.ai requires a /register endpoint. We return the fixed credentials
+// so only connectors configured with the correct secret can complete the flow.
 
 app.post("/register", async (c) => {
+  const env = getEnv();
   const body = await c.req.json();
-
-  if (!body.redirect_uris || !Array.isArray(body.redirect_uris)) {
-    return c.json({ error: "redirect_uris is required" }, 400);
-  }
-
-  const clientId = crypto.randomUUID();
-  const clientSecret = crypto.randomUUID();
-
-  registeredClients.set(clientId, {
-    clientSecret,
-    redirectUris: body.redirect_uris,
-  });
 
   return c.json(
     {
-      client_id: clientId,
-      client_secret: clientSecret,
-      client_name: body.client_name,
-      redirect_uris: body.redirect_uris,
+      client_id: env.OAUTH_CLIENT_ID,
+      client_secret: env.OAUTH_CLIENT_SECRET,
+      client_name: body.client_name || "GTM MCP Client",
+      redirect_uris: body.redirect_uris || [],
     },
     201,
   );
 });
 
-// --- Authorization Endpoint (auto-approves) ---
+// --- Authorization Endpoint (validates client_id, auto-approves) ---
 
 app.get("/authorize", (c) => {
+  const env = getEnv();
   const clientId = c.req.query("client_id");
   const redirectUri = c.req.query("redirect_uri");
   const state = c.req.query("state");
@@ -107,12 +97,17 @@ app.get("/authorize", (c) => {
     return c.text("Missing client_id or redirect_uri", 400);
   }
 
-  // Auto-approve: generate auth code and redirect back immediately
+  // Gate: only the pre-configured client can authorize
+  if (clientId !== env.OAUTH_CLIENT_ID) {
+    return c.text("Unauthorized client", 403);
+  }
+
+  // Auto-approve: generate auth code and redirect back
   const code = crypto.randomUUID();
   authCodes.set(code, {
     clientId,
     redirectUri,
-    expiresAt: Date.now() + 5 * 60 * 1000, // 5 min
+    expiresAt: Date.now() + 5 * 60 * 1000,
   });
 
   const url = new URL(redirectUri);
@@ -122,7 +117,7 @@ app.get("/authorize", (c) => {
   return Response.redirect(url.toString());
 });
 
-// --- Token Endpoint ---
+// --- Token Endpoint (validates client_secret) ---
 
 app.post("/oauth/token", async (c) => {
   const env = getEnv();
@@ -139,6 +134,17 @@ app.post("/oauth/token", async (c) => {
     body = await c.req.json();
   }
 
+  // Gate: validate client credentials
+  const clientId = body.client_id;
+  const clientSecret = body.client_secret;
+
+  if (
+    clientId !== env.OAUTH_CLIENT_ID ||
+    clientSecret !== env.OAUTH_CLIENT_SECRET
+  ) {
+    return c.json({ error: "invalid_client" }, 401);
+  }
+
   const grantType = body.grant_type;
 
   if (grantType === "authorization_code") {
@@ -152,7 +158,6 @@ app.post("/oauth/token", async (c) => {
     }
     authCodes.delete(code);
 
-    // Return the API key as the access token
     return c.json({
       access_token: env.MCP_API_KEY,
       token_type: "bearer",
@@ -271,7 +276,9 @@ app.get("/setup/callback", async (c) => {
         <p>Your MCP server is now ready to use.</p>
       </div>
       <h3>Connect with Claude.ai:</h3>
-      <p>Add as custom connector with URL: <code>${env.HOST_URL}/mcp</code></p>
+      <p>URL: <code>${env.HOST_URL}/mcp</code></p>
+      <p>Advanced settings → OAuth Client ID: <code>${env.OAUTH_CLIENT_ID}</code></p>
+      <p>Advanced settings → OAuth Client Secret: <code>${env.OAUTH_CLIENT_SECRET}</code></p>
     </body></html>
   `);
 });

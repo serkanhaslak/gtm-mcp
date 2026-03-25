@@ -19,6 +19,8 @@ const REQUIRED_ENV = [
   "GOOGLE_CLIENT_SECRET",
   "HOST_URL",
   "MCP_API_KEY",
+  "OAUTH_CLIENT_ID",
+  "OAUTH_CLIENT_SECRET",
 ] as const;
 
 for (const key of REQUIRED_ENV) {
@@ -33,6 +35,8 @@ const env: AppEnv = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
   HOST_URL: process.env.HOST_URL!,
   MCP_API_KEY: process.env.MCP_API_KEY!,
+  OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID!,
+  OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET!,
   CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || "/data",
   HOSTED_DOMAIN: process.env.HOSTED_DOMAIN,
 };
