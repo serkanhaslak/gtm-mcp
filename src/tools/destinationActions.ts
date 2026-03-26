@@ -18,12 +18,12 @@ export const destinationActions = (
 ): void => {
   server.tool(
     "gtm_destination",
-    `Performs all destination operations: get, list, link, unlink.  The 'list' action returns up to ${ITEMS_PER_PAGE} items per page.`,
+    `Performs all destination operations: get, list, link. The 'list' action returns up to ${ITEMS_PER_PAGE} items per page.`,
     {
       action: z
-        .enum(["get", "list", "link", "unlink"])
+        .enum(["get", "list", "link"])
         .describe(
-          "The destination operation to perform. Must be one of: 'get', 'list', 'link', 'unlink'.",
+          "The destination operation to perform. Must be one of: 'get', 'list', 'link'.",
         ),
       accountId: z
         .string()
@@ -39,7 +39,7 @@ export const destinationActions = (
         .string()
         .optional()
         .describe(
-          "The unique ID of the GTM Destination. Required for 'get', 'link', and 'unlink' actions.",
+          "The unique ID of the GTM Destination. Required for 'get' and 'link' actions.",
         ),
       allowUserPermissionFeatureUpdate: z
         .boolean()
@@ -127,32 +127,6 @@ export const destinationActions = (
             return {
               content: [
                 { type: "text", text: JSON.stringify(response.data, null, 2) },
-              ],
-            };
-          }
-          case "unlink": {
-            if (!destinationId) {
-              throw new Error(`destinationId is required for ${action} action`);
-            }
-
-            await tagmanager.accounts.containers.destinations.link({
-              parent: `accounts/${accountId}/containers/${containerId}`,
-              destinationId: destinationId,
-            });
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify(
-                    {
-                      success: true,
-                      message: `Destination ${destinationId} was successfully unlinked`,
-                    },
-                    null,
-                    2,
-                  ),
-                },
               ],
             };
           }
