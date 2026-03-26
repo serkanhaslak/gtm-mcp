@@ -37,7 +37,7 @@ export const renderMainPage = (): string => {
       "args": [
         "-y",
         "mcp-remote",
-        "https://gtm-mcp.pragmaticgrowth.com/sse"
+        "https://gtm-mcp.pragmaticgrowth.com/mcp"
       ]
     }
   }
