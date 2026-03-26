@@ -308,7 +308,7 @@ app.get("/privacy", async () => {
   });
 });
 
-app.get("/terms-of-service", async () => {
+app.get("/service-terms", async () => {
   return new Response(renderTermsPage(), {
     headers: { "content-type": "text/html;charset=UTF-8" },
   });
