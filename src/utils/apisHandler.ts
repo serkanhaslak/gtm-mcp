@@ -7,6 +7,7 @@ import {
   getUpstreamAuthorizeUrl,
 } from "./authorizeUtils.js";
 import { renderMainPage } from "./renderMainPage.js";
+import { renderPageLayout } from "./renderPageLayout.js";
 import { renderPrivacyPage } from "./renderPrivacyPage.js";
 import { renderTermsPage } from "./renderTermsPage.js";
 
@@ -263,24 +264,22 @@ app.get("/setup/callback", async (c) => {
   }
   fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2));
 
-  return c.html(`
-    <!DOCTYPE html>
-    <html><head><title>Setup Complete</title>
-    <style>body{font-family:system-ui;max-width:600px;margin:2rem auto;padding:1rem;background:#1a1a2e;color:#e0e0e0}
-    .success{background:#1b4332;padding:1.5rem;border-radius:8px;margin:1rem 0}
-    code{background:#2d2d44;padding:2px 6px;border-radius:4px}</style></head>
-    <body>
+  return c.html(
+    renderPageLayout({
+      title: "Setup Complete - GTM MCP Server by Pragmatic Growth",
+      content: `
       <h1>Setup Complete</h1>
       <div class="success">
         <p>Google credentials saved for <strong>${name}</strong> (${email})</p>
         <p>Your MCP server is now ready to use.</p>
       </div>
-      <h3>Connect with Claude.ai:</h3>
+      <h2>Connect with Claude.ai</h2>
       <p>URL: <code>${env.HOST_URL}/mcp</code></p>
-      <p>Advanced settings → OAuth Client ID: <code>${env.OAUTH_CLIENT_ID}</code></p>
-      <p>Advanced settings → OAuth Client Secret: <code>${env.OAUTH_CLIENT_SECRET}</code></p>
-    </body></html>
-  `);
+      <p>Advanced settings &rarr; OAuth Client ID: <code>${env.OAUTH_CLIENT_ID}</code></p>
+      <p>Advanced settings &rarr; OAuth Client Secret: <code>${env.OAUTH_CLIENT_SECRET}</code></p>
+      `,
+    }),
+  );
 });
 
 // ============================================================
