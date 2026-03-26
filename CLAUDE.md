@@ -91,7 +91,7 @@ Required in Railway service or `.dev.vars`:
 - Railway project with volume mounted at `/data`
 - Per-user credentials stored at `/data/users/<apiKey>.json`
 - Domain: `gtm-mcp.pragmaticgrowth.com` (DNS through Cloudflare)
-- Cloudflare WAF blocks some paths (e.g., `/token`, `/terms`) — use `/oauth/token` and `/terms-of-service`
+- Cloudflare WAF blocks some paths (e.g., `/token`, `/terms` and `/service-terms`) — use `/oauth/token` and `/service-terms`
 
 ## Research & Documentation Tools
 

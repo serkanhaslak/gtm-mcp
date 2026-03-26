@@ -4,14 +4,15 @@
   "type": "module",
   "description": "MCP server for Google Tag Manager",
   "license": "Apache-2.0",
-  "author": "stape-io",
-  "homepage": "https://github.com/stape-io/google-tag-manager-mcp-server",
+  "author": "Pragmatic Growth",
+  "homepage": "https://github.com/serkanhaslak/gtm-mcp",
   "main": "dist/server.js",
   "keywords": [
     "mcp",
     "modelcontextprotocol",
     "gtm",
-    "stape"
+    "google-tag-manager",
+    "pragmatic-growth"
   ],
   "engines": {
     "node": "20.x || 22.x"

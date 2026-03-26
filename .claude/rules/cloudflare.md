@@ -28,4 +28,4 @@ The `AppEnv` type in `global.d.ts` defines all required config:
 
 - Push to `main` triggers Railway auto-deploy
 - Cloudflare WAF blocks certain paths — avoid bare `/token` and `/terms`
-- Use `/oauth/token` and `/terms-of-service` instead
+- Use `/oauth/token` and `/service-terms` instead
