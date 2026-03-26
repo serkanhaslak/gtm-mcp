@@ -1,43 +1,82 @@
-# MCP Server for Google Tag Manager
+# GTM MCP Server by Pragmatic Growth
 
-[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/stape-io/google-tag-manager-mcp-server)](https://archestra.ai/mcp-catalog/stape-io__google-tag-manager-mcp-server)
+A multi-tenant remote MCP server providing full Google Tag Manager API access. Each user authenticates with their own Google account via OAuth and receives a personal API key.
 
-This is a server that supports remote MCP connections, with Google OAuth built-in and provides an interface to the Google Tag Manager API.
+## How It Works
 
-## Access the remote MCP server from Claude Desktop
+1. Connect your MCP client to the server
+2. On first connection, you'll be redirected to Google to sign in and grant GTM access
+3. An API key is generated for your account automatically
+4. All subsequent connections use your API key to access **your** GTM data
 
-Open Claude Desktop and navigate to Settings -> Developer -> Edit Config. This opens the configuration file that controls which MCP servers Claude can access.
+## Connect from Claude Desktop
 
-Replace the content with the following configuration. Once you restart Claude Desktop, a browser window will open showing your OAuth login page. Complete the authentication flow to grant Claude access to your MCP server. After you grant access, the tools will become available for you to use.
+Open Claude Desktop and navigate to Settings -> Developer -> Edit Config:
 
 ```json
 {
   "mcpServers": {
-    "gtm-mcp-server": {
+    "google-tag-manager": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://gtm-mcp.stape.ai/mcp"]
+      "args": ["-y", "mcp-remote", "https://gtm-mcp.pragmaticgrowth.com/mcp"]
     }
   }
 }
 ```
 
-### Troubleshooting
+Restart Claude Desktop. A browser window will open for Google OAuth. Complete the authentication to grant GTM access.
+
+## Connect from Claude.ai
+
+Add a custom MCP integration with the URL:
+
+```
+https://gtm-mcp.pragmaticgrowth.com/mcp
+```
+
+## Troubleshooting
 
 **MCP Server Name Length Limit**
 
-Some MCP clients (like Cursor AI) have a 60-character limit for the combined MCP server name + tool name length. If you use a longer server name in your configuration (e.g., `gtm-mcp-server-your-additional-long-name`), some tools may be filtered out.
-
-To avoid this issue:
-
-- Use shorter server names in your MCP configuration (e.g., `gtm-mcp-server`)
+Some MCP clients (like Cursor AI) have a 60-character limit for the combined MCP server name + tool name length. Use shorter server names in your configuration (e.g., `google-tag-manager`).
 
 **Clearing MCP Cache**
 
-[mcp-remote](https://github.com/geelen/mcp-remote#readme) stores all the credential information inside ~/.mcp-auth (or wherever your MCP_REMOTE_CONFIG_DIR points to). If you're having persistent issues, try running:
-You can run rm -rf ~/.mcp-auth to clear any locally stored state and tokens.
+[mcp-remote](https://github.com/geelen/mcp-remote#readme) stores credentials in `~/.mcp-auth`. If you have issues, clear the cached state:
 
 ```
 rm -rf ~/.mcp-auth
 ```
 
-Then restarting your MCP client.
+Then restart your MCP client.
+
+## Development
+
+```bash
+npm run build        # TypeScript compile
+npm run dev          # Local dev server
+npm run lint         # ESLint check
+npm run lint:fix     # ESLint auto-fix
+```
+
+## Environment Variables
+
+| Variable               | Required | Description                                                   |
+| ---------------------- | -------- | ------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`     | Yes      | Google OAuth client ID                                        |
+| `GOOGLE_CLIENT_SECRET` | Yes      | Google OAuth client secret                                    |
+| `HOST_URL`             | Yes      | Server hostname (e.g., `https://gtm-mcp.pragmaticgrowth.com`) |
+| `OAUTH_CLIENT_ID`      | Yes      | MCP OAuth shim client ID                                      |
+| `OAUTH_CLIENT_SECRET`  | Yes      | MCP OAuth shim client secret                                  |
+| `CREDENTIALS_PATH`     | No       | Base path for user data (default: `/data`)                    |
+| `HOSTED_DOMAIN`        | No       | Restrict Google auth to a specific domain                     |
+
+## Architecture
+
+Multi-tenant Node.js server deployed on Railway:
+
+- **Hono** web framework with MCP SDK
+- **Per-user OAuth**: Each user authenticates with Google and gets their own API key
+- **User credentials** stored on Railway volume at `<CREDENTIALS_PATH>/users/<apiKey>.json`
+- **Google token refresh** handled transparently per-user
+- **19 GTM API tools** covering accounts, containers, workspaces, tags, triggers, variables, and more

@@ -296,7 +296,7 @@ export function renderPageLayout(options: {
       <img src="https://framerusercontent.com/images/1yjUl4sKzzdaSFzrA6MxoEywY.svg" alt="Pragmatic Growth">
       <nav>
         <a href="/privacy">Privacy Policy</a>
-        <a href="/terms">Terms of Service</a>
+        <a href="/terms-of-service">Terms of Service</a>
       </nav>
       <span class="copyright">&copy; ${new Date().getFullYear()} Pragmatic Growth</span>
     </div>

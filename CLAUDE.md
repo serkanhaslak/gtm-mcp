@@ -1,18 +1,16 @@
-# Google Tag Manager MCP Server
+# GTM MCP Server by Pragmatic Growth
 
 ## Project Overview
 
-Remote MCP server providing full Google Tag Manager API access via OAuth. Built by **stape-io**, deployed on **Cloudflare Workers** at `gtm-mcp.stape.ai`. Version managed via `package.json`.
+Multi-tenant remote MCP server providing full Google Tag Manager API access via per-user OAuth. Deployed on **Railway** at `gtm-mcp.pragmaticgrowth.com`. Version managed via `package.json`.
 
 ## Commands
 
 ```bash
-npm run build        # TypeScript compile → dist/ (also runs on postinstall)
-npm run dev          # Local dev server (port 8788)
-npm run deploy       # Deploy to Cloudflare Workers
+npm run build        # TypeScript compile → dist/
+npm run dev          # Local dev server
 npm run lint         # ESLint check
 npm run lint:fix     # ESLint auto-fix
-npm run cf-typegen   # Regenerate Cloudflare types
 ```
 
 ## Tech Stack
@@ -20,23 +18,41 @@ npm run cf-typegen   # Regenerate Cloudflare types
 - **TypeScript** (ES2022, strict mode)
 - **MCP SDK** (`@modelcontextprotocol/sdk`) — protocol implementation
 - **googleapis** — Google Tag Manager API v2 client
-- **Hono** — web framework for Workers
+- **Hono** — web framework
 - **Zod** — schema validation for tool inputs
-- **Cloudflare Workers** — runtime (Durable Objects for state, KV for OAuth)
-- **OAuth Provider** (`@cloudflare/workers-oauth-provider`) — Google OAuth flow
+- **Railway** — runtime (volume storage for per-user credentials)
 
 ## Architecture
 
 ```
 src/
-├── index.ts          # MCP server entry point (GoogleTagManagerMCPServer class)
+├── server.ts         # Hono app, MCP endpoint, per-user session management
+├── index.ts          # MCP server factory (createMcpServer)
 ├── tools/            # 19 tool modules (CRUD for each GTM resource)
 │   └── index.ts      # Barrel export — tools array
 ├── schemas/          # Zod validation schemas (mirror GTM API v2 types)
-├── utils/            # Auth, error handling, pagination, logging
+├── utils/            # Auth, error handling, pagination, logging, user store
+│   ├── apisHandler.ts      # OAuth shim routes, static pages
+│   ├── authorizeUtils.ts   # Google OAuth helpers
+│   ├── userStore.ts        # Per-user credential CRUD (file-based)
+│   ├── renderPageLayout.ts # Shared HTML layout with PG branding
+│   ├── render*Page.ts      # Landing, privacy, terms page templates
+│   └── index.ts            # Barrel export
 ├── models/           # TypeScript interfaces (McpAgentModel)
 └── constants/        # Tool name constants
 ```
+
+## Multi-Tenant Auth Flow
+
+1. MCP client calls `POST /register` → gets OAuth shim credentials
+2. Client redirects to `GET /authorize` → server redirects to Google OAuth
+3. User authenticates with Google, grants GTM permissions
+4. Google redirects to `/callback` → server generates per-user API key, stores credentials in `/data/users/<apiKey>.json`
+5. Server redirects back to MCP client with auth code
+6. Client exchanges code at `POST /oauth/token` → gets API key as bearer token
+7. Client uses `POST /mcp` with `Bearer <apiKey>` → server looks up user, creates MCP session with their Google credentials
+
+Google token refresh happens transparently per-user on each MCP request.
 
 ## Tool Pattern
 
@@ -57,31 +73,31 @@ Each tool module exports a function `(server: McpServer, { props }: McpAgentTool
 
 ## Environment Variables
 
-Required in `wrangler.jsonc` secrets or `.dev.vars`:
+Required in Railway service or `.dev.vars`:
 
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — Google OAuth
-- `COOKIE_ENCRYPTION_KEY` — session cookie encryption
-- `WORKER_HOST` — deployment hostname
-- `HOSTED_DOMAIN` (optional) — restrict Google auth to domain
+| Variable               | Required | Description                                |
+| ---------------------- | -------- | ------------------------------------------ |
+| `GOOGLE_CLIENT_ID`     | Yes      | Google OAuth client ID                     |
+| `GOOGLE_CLIENT_SECRET` | Yes      | Google OAuth client secret                 |
+| `HOST_URL`             | Yes      | Server hostname                            |
+| `OAUTH_CLIENT_ID`      | Yes      | MCP OAuth shim client ID                   |
+| `OAUTH_CLIENT_SECRET`  | Yes      | MCP OAuth shim client secret               |
+| `CREDENTIALS_PATH`     | No       | Base path for user data (default: `/data`) |
+| `HOSTED_DOMAIN`        | No       | Restrict Google auth to a specific domain  |
 
-## OAuth Flow
+## Deployment
 
-1. Client connects to `/mcp` or `/sse`
-2. Redirects to `/authorize` → Google OAuth consent
-3. Token exchange at `/token`, stored in `OAUTH_KV`
-4. Tools use `getTagManagerClient()` to get authenticated API client
-
-## Git Workflow
-
-- PRs merge to `main`
-- Push to `main` triggers: NPM publish (`.github/workflows/main.yml`) + Cloudflare deploy (`.github/workflows/deploy.yml`)
-- Node 18 for NPM publish, Node 20 for Cloudflare deploy
+- Push to `main` triggers Railway auto-deploy
+- Railway project with volume mounted at `/data`
+- Per-user credentials stored at `/data/users/<apiKey>.json`
+- Domain: `gtm-mcp.pragmaticgrowth.com` (DNS through Cloudflare)
+- Cloudflare WAF blocks some paths (e.g., `/token`, `/terms`) — use `/oauth/token` and `/terms-of-service`
 
 ## Research & Documentation Tools
 
 When working on this project, use these MCP tools:
 
-- **Context7** — Look up library docs (MCP SDK, googleapis, Hono, Zod, Cloudflare Workers):
+- **Context7** — Look up library docs (MCP SDK, googleapis, Hono, Zod):
   1. `mcp__claude_ai_Context7__resolve-library-id` to find the library
   2. `mcp__claude_ai_Context7__query-docs` to query specific documentation
 - **Research Powerpack** — Research GTM API changes, best practices, debugging:

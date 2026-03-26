@@ -1,33 +1,31 @@
 ---
 paths:
-  - "wrangler.jsonc"
   - "global.d.ts"
-  - "worker-configuration.d.ts"
+  - "src/server.ts"
 ---
 
-# Cloudflare Workers Rules
+# Deployment Rules
 
 ## Infrastructure
 
-- **Durable Objects**: `MCP_OBJECT` binding → `GoogleTagManagerMCPServer` class (stateful MCP sessions)
-- **KV Namespace**: `OAUTH_KV` → OAuth token/state storage
-- **Node.js compatibility**: enabled (required for googleapis)
-- **Observability**: enabled
+- **Runtime**: Node.js on Railway
+- **Volume**: `/data` — stores per-user credentials at `/data/users/<apiKey>.json`
+- **Domain**: `gtm-mcp.pragmaticgrowth.com` (DNS through Cloudflare)
 
 ## Environment Interface
 
-The `Env` type in `global.d.ts` defines all bindings:
+The `AppEnv` type in `global.d.ts` defines all required config:
 
-- `OAUTH_KV: KVNamespace`
-- `GOOGLE_CLIENT_ID: string`
-- `GOOGLE_CLIENT_SECRET: string`
-- `COOKIE_ENCRYPTION_KEY: string`
-- `WORKER_HOST: string`
-- `MCP_OBJECT: DurableObjectNamespace`
+- `GOOGLE_CLIENT_ID: string` — Google OAuth
+- `GOOGLE_CLIENT_SECRET: string` — Google OAuth
+- `HOST_URL: string` — Server hostname
+- `OAUTH_CLIENT_ID: string` — MCP OAuth shim
+- `OAUTH_CLIENT_SECRET: string` — MCP OAuth shim
+- `CREDENTIALS_PATH?: string` — Base path for user data (default: `/data`)
+- `HOSTED_DOMAIN?: string` — Restrict Google auth to domain
 
 ## Deployment
 
-- Domain: `gtm-mcp.stape.ai`
-- Dev port: `8788`
-- Compatibility date: `2025-03-10`
-- After changing bindings in `wrangler.jsonc`, run `npm run cf-typegen` to regenerate types
+- Push to `main` triggers Railway auto-deploy
+- Cloudflare WAF blocks certain paths — avoid bare `/token` and `/terms`
+- Use `/oauth/token` and `/terms-of-service` instead

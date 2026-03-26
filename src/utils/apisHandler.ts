@@ -28,7 +28,7 @@ const pendingAuths = new Map<
   }
 >();
 
-function getEnv(): Omit<AppEnv, "MCP_API_KEY"> {
+function getEnv(): AppEnv {
   return {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
@@ -308,7 +308,7 @@ app.get("/privacy", async () => {
   });
 });
 
-app.get("/terms", async () => {
+app.get("/terms-of-service", async () => {
   return new Response(renderTermsPage(), {
     headers: { "content-type": "text/html;charset=UTF-8" },
   });

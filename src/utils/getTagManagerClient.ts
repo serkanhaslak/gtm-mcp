@@ -1,11 +1,11 @@
 import { google } from "googleapis";
 import { log } from "./log.js";
-import { Props } from "./authorizeUtils.js";
+import type { McpAgentPropsModel } from "../models/McpAgentModel.js";
 
 type TagManagerClient = ReturnType<typeof google.tagmanager>;
 
 export async function getTagManagerClient(
-  props: Props,
+  props: McpAgentPropsModel,
 ): Promise<TagManagerClient> {
   const token = props.accessToken;
 

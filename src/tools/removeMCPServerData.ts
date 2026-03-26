@@ -25,7 +25,7 @@ export const removeMCPServerData = (
             content: [
               {
                 type: "text",
-                text: "Google access token revoked. Visit /setup on the server to re-authenticate.",
+                text: "Google access token revoked. Reconnect your MCP client to re-authenticate via Google OAuth.",
               },
             ],
           };

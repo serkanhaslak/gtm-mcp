@@ -20,7 +20,7 @@ function getUserFilePath(basePath: string, apiKey: string): string {
   return path.join(getUsersDir(basePath), `${apiKey}.json`);
 }
 
-export function ensureUsersDir(basePath: string): void {
+function ensureUsersDir(basePath: string): void {
   const dir = getUsersDir(basePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
