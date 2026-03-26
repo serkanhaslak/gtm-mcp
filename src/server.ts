@@ -2,13 +2,18 @@ import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
-import fs from "node:fs";
 import { loadEnv } from "./utils/loadEnv.js";
-import { apisHandler, getCredentialsFilePath } from "./utils/apisHandler.js";
+import { apisHandler } from "./utils/apisHandler.js";
 import { createMcpServer } from "./index.js";
 import { refreshUpstreamAuthToken } from "./utils/authorizeUtils.js";
 import type { McpAgentPropsModel } from "./models/McpAgentModel.js";
 import { log } from "./utils/log.js";
+import {
+  loadUser,
+  updateUser,
+  countUsers,
+  type UserCredentials,
+} from "./utils/userStore.js";
 
 // Load environment variables
 loadEnv();
@@ -18,7 +23,6 @@ const REQUIRED_ENV = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "HOST_URL",
-  "MCP_API_KEY",
   "OAUTH_CLIENT_ID",
   "OAUTH_CLIENT_SECRET",
 ] as const;
@@ -34,73 +38,58 @@ const env: AppEnv = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
   HOST_URL: process.env.HOST_URL!,
-  MCP_API_KEY: process.env.MCP_API_KEY!,
   OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID!,
   OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET!,
   CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || "/data",
   HOSTED_DOMAIN: process.env.HOSTED_DOMAIN,
 };
 
-// --- Google Credentials Management ---
+// --- Per-User Google Token Refresh ---
 
-interface GoogleCredentials {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  name: string;
-  email: string;
-}
+const REFRESH_THRESHOLD = 300; // 5 minutes
 
-function loadCredentials(): GoogleCredentials | null {
-  const credPath = getCredentialsFilePath();
-  if (!fs.existsSync(credPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(credPath, "utf-8"));
-  } catch {
-    return null;
-  }
-}
-
-function saveCredentials(creds: GoogleCredentials): void {
-  const credPath = getCredentialsFilePath();
-  fs.writeFileSync(credPath, JSON.stringify(creds, null, 2));
-}
-
-async function getValidCredentials(): Promise<GoogleCredentials | null> {
-  const creds = loadCredentials();
-  if (!creds) return null;
+async function getValidUserCredentials(
+  apiKey: string,
+): Promise<UserCredentials | null> {
+  const basePath = env.CREDENTIALS_PATH || "/data";
+  const user = loadUser(basePath, apiKey);
+  if (!user) return null;
 
   const now = Math.floor(Date.now() / 1000);
-  const REFRESH_THRESHOLD = 300;
 
-  if (creds.expiresAt > now + REFRESH_THRESHOLD) {
-    return creds;
+  // Token still valid
+  if (user.expiresAt > now + REFRESH_THRESHOLD) {
+    user.lastUsed = new Date().toISOString();
+    updateUser(basePath, user);
+    return user;
   }
 
-  if (!creds.refreshToken) return null;
+  // Need to refresh
+  if (!user.refreshToken) return null;
 
-  log("Refreshing Google access token...");
+  log(`Refreshing Google token for ${user.email}...`);
   const [token, err] = await refreshUpstreamAuthToken({
     clientId: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
-    refreshToken: creds.refreshToken,
+    refreshToken: user.refreshToken,
     upstreamUrl: "https://oauth2.googleapis.com/token",
   });
 
   if (!token) {
-    log("Failed to refresh Google token:", err);
+    log(`Failed to refresh Google token for ${user.email}:`, err);
     return null;
   }
 
-  const updated: GoogleCredentials = {
-    ...creds,
+  const updated: UserCredentials = {
+    ...user,
     accessToken: token.access_token,
     expiresAt: now + token.expires_in,
-    refreshToken: token.refresh_token || creds.refreshToken,
+    refreshToken: token.refresh_token || user.refreshToken,
+    lastUsed: new Date().toISOString(),
   };
 
-  saveCredentials(updated);
-  log("Google access token refreshed successfully");
+  updateUser(basePath, updated);
+  log(`Google token refreshed for ${user.email}`);
   return updated;
 }
 
@@ -148,23 +137,23 @@ app.all("/mcp", async (c) => {
     return c.body(null, 200);
   }
 
-  // Validate API key
+  // Validate API key (per-user)
   const authHeader = c.req.header("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({ error: "Missing Authorization: Bearer <API_KEY>" }, 401);
   }
 
   const apiKey = authHeader.slice(7);
-  if (apiKey !== env.MCP_API_KEY) {
-    return c.json({ error: "Invalid API key" }, 401);
-  }
 
-  // Get Google credentials
-  const creds = await getValidCredentials();
+  // Look up user credentials by API key
+  const creds = await getValidUserCredentials(apiKey);
   if (!creds) {
     return c.json(
-      { error: "Google credentials not configured. Visit /setup first." },
-      503,
+      {
+        error:
+          "Invalid API key or expired credentials. Please re-authenticate.",
+      },
+      401,
     );
   }
 
@@ -192,7 +181,7 @@ app.all("/mcp", async (c) => {
         server: mcpServer,
         lastActivity: Date.now(),
       });
-      log(`New MCP session: ${sid} (${creds.name})`);
+      log(`New MCP session: ${sid} (${creds.name} <${creds.email}>)`);
     },
   });
 
@@ -220,21 +209,15 @@ app.all("/mcp", async (c) => {
   return transport.handleRequest(c.req.raw);
 });
 
-// Mount all other routes (OAuth shim, setup, static pages)
+// Mount all other routes (OAuth shim, static pages)
 app.route("/", apisHandler);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3000", 10);
 serve({ fetch: app.fetch, port: PORT }, () => {
+  const basePath = env.CREDENTIALS_PATH || "/data";
+  const userCount = countUsers(basePath);
   console.log(`GTM MCP Server running on port ${PORT}`);
   console.log(`Host URL: ${env.HOST_URL}`);
-
-  const creds = loadCredentials();
-  if (creds) {
-    console.log(`Google account: ${creds.email}`);
-  } else {
-    console.log(
-      `No Google credentials found. Visit ${env.HOST_URL}/setup to configure.`,
-    );
-  }
+  console.log(`Registered users: ${userCount}`);
 });

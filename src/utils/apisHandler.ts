@@ -1,30 +1,38 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { Hono } from "hono";
 import {
   fetchUpstreamAuthToken,
   getUpstreamAuthorizeUrl,
 } from "./authorizeUtils.js";
 import { renderMainPage } from "./renderMainPage.js";
-import { renderPageLayout } from "./renderPageLayout.js";
 import { renderPrivacyPage } from "./renderPrivacyPage.js";
 import { renderTermsPage } from "./renderTermsPage.js";
+import { saveUser } from "./userStore.js";
 
 const app = new Hono();
 
 // In-memory auth codes (short-lived, for OAuth flow)
 const authCodes = new Map<
   string,
-  { clientId: string; redirectUri: string; expiresAt: number }
+  { apiKey: string; redirectUri: string; expiresAt: number }
 >();
 
-function getEnv(): AppEnv {
+// Pending OAuth authorizations (maps our state → MCP client context)
+const pendingAuths = new Map<
+  string,
+  {
+    clientId: string;
+    redirectUri: string;
+    mcpState: string | undefined;
+    expiresAt: number;
+  }
+>();
+
+function getEnv(): Omit<AppEnv, "MCP_API_KEY"> {
   return {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
     HOST_URL: process.env.HOST_URL || "",
-    MCP_API_KEY: process.env.MCP_API_KEY || "",
     OAUTH_CLIENT_ID: process.env.OAUTH_CLIENT_ID || "",
     OAUTH_CLIENT_SECRET: process.env.OAUTH_CLIENT_SECRET || "",
     CREDENTIALS_PATH: process.env.CREDENTIALS_PATH || "/data",
@@ -32,14 +40,8 @@ function getEnv(): AppEnv {
   };
 }
 
-function getCredentialsFilePath(): string {
-  const env = getEnv();
-  return path.join(env.CREDENTIALS_PATH || "/data", "google-credentials.json");
-}
-
 // ============================================================
-// OAuth 2.0 Shim — gated by pre-configured client credentials
-// Only clients with the correct OAUTH_CLIENT_ID/SECRET can connect
+// OAuth 2.0 Shim — multi-tenant, Google OAuth per user
 // ============================================================
 
 // --- Discovery ---
@@ -67,9 +69,8 @@ app.get("/.well-known/oauth-authorization-server", (c) => {
   });
 });
 
-// --- Dynamic Client Registration (returns pre-configured credentials) ---
-// Claude.ai requires a /register endpoint. We return the fixed credentials
-// so only connectors configured with the correct secret can complete the flow.
+// --- Dynamic Client Registration ---
+// Returns pre-configured credentials. Required by Claude.ai / mcp-remote.
 
 app.post("/register", async (c) => {
   const env = getEnv();
@@ -86,13 +87,15 @@ app.post("/register", async (c) => {
   );
 });
 
-// --- Authorization Endpoint (validates client_id, auto-approves) ---
+// --- Authorization Endpoint ---
+// Validates client_id, then redirects to Google OAuth.
+// The MCP client's redirect_uri and state are preserved through the Google flow.
 
 app.get("/authorize", (c) => {
   const env = getEnv();
   const clientId = c.req.query("client_id");
   const redirectUri = c.req.query("redirect_uri");
-  const state = c.req.query("state");
+  const mcpState = c.req.query("state");
 
   if (!clientId || !redirectUri) {
     return c.text("Missing client_id or redirect_uri", 400);
@@ -103,22 +106,127 @@ app.get("/authorize", (c) => {
     return c.text("Unauthorized client", 403);
   }
 
-  // Auto-approve: generate auth code and redirect back
-  const code = crypto.randomUUID();
-  authCodes.set(code, {
+  // Store pending auth context (to correlate Google callback with MCP client)
+  const pendingId = crypto.randomUUID();
+  pendingAuths.set(pendingId, {
     clientId,
     redirectUri,
+    mcpState,
+    expiresAt: Date.now() + 10 * 60 * 1000, // 10 min TTL
+  });
+
+  // Redirect to Google OAuth
+  const scopes = [
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/tagmanager.manage.accounts",
+    "https://www.googleapis.com/auth/tagmanager.edit.containers",
+    "https://www.googleapis.com/auth/tagmanager.delete.containers",
+    "https://www.googleapis.com/auth/tagmanager.edit.containerversions",
+    "https://www.googleapis.com/auth/tagmanager.manage.users",
+    "https://www.googleapis.com/auth/tagmanager.publish",
+    "https://www.googleapis.com/auth/tagmanager.readonly",
+  ];
+
+  const googleAuthUrl = getUpstreamAuthorizeUrl({
+    upstreamUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    scope: scopes.join(" "),
+    clientId: env.GOOGLE_CLIENT_ID,
+    redirectUri: `${env.HOST_URL}/callback`,
+    state: pendingId,
+    hostedDomain: env.HOSTED_DOMAIN,
+    hasRefreshToken: false,
+  });
+
+  return Response.redirect(googleAuthUrl);
+});
+
+// --- Google OAuth Callback ---
+// Receives the Google auth code, exchanges for tokens, generates an API key,
+// saves user credentials, and redirects back to the MCP client.
+
+app.get("/callback", async (c) => {
+  const env = getEnv();
+  const googleCode = c.req.query("code");
+  const pendingId = c.req.query("state");
+
+  if (!googleCode || !pendingId) {
+    return c.text("Missing code or state from Google", 400);
+  }
+
+  // Look up the pending auth
+  const pending = pendingAuths.get(pendingId);
+  if (!pending || Date.now() > pending.expiresAt) {
+    pendingAuths.delete(pendingId || "");
+    return c.text("Authorization request expired. Please try again.", 400);
+  }
+  pendingAuths.delete(pendingId);
+
+  // Exchange Google code for tokens
+  const [tokenResult, errResponse] = await fetchUpstreamAuthToken({
+    upstreamUrl: "https://oauth2.googleapis.com/token",
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    code: googleCode,
+    redirectUri: `${env.HOST_URL}/callback`,
+    grantType: "authorization_code",
+  });
+
+  if (errResponse) {
+    return errResponse;
+  }
+
+  // Fetch user info from Google
+  const userResponse = await fetch(
+    "https://www.googleapis.com/oauth2/v2/userinfo",
+    { headers: { Authorization: `Bearer ${tokenResult?.access_token}` } },
+  );
+
+  if (!userResponse.ok) {
+    return c.text(
+      `Failed to fetch user info: ${await userResponse.text()}`,
+      500,
+    );
+  }
+
+  const { name, email } = (await userResponse.json()) as {
+    name: string;
+    email: string;
+  };
+
+  // Generate API key and save user credentials
+  const apiKey = crypto.randomUUID();
+  const basePath = env.CREDENTIALS_PATH || "/data";
+
+  saveUser(basePath, {
+    apiKey,
+    accessToken: tokenResult.access_token,
+    refreshToken: tokenResult.refresh_token || "",
+    expiresAt: Math.floor(Date.now() / 1000) + (tokenResult.expires_in ?? 3600),
+    name,
+    email,
+    createdAt: new Date().toISOString(),
+    lastUsed: new Date().toISOString(),
+  });
+
+  // Create an auth code for the MCP client to exchange
+  const mcpAuthCode = crypto.randomUUID();
+  authCodes.set(mcpAuthCode, {
+    apiKey,
+    redirectUri: pending.redirectUri,
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
 
-  const url = new URL(redirectUri);
-  url.searchParams.set("code", code);
-  if (state) url.searchParams.set("state", state);
+  // Redirect back to the MCP client
+  const url = new URL(pending.redirectUri);
+  url.searchParams.set("code", mcpAuthCode);
+  if (pending.mcpState) url.searchParams.set("state", pending.mcpState);
 
   return Response.redirect(url.toString());
 });
 
-// --- Token Endpoint (validates client_secret) ---
+// --- Token Endpoint ---
+// Exchanges auth code for the user's API key (as bearer token).
 
 app.post("/oauth/token", async (c) => {
   const env = getEnv();
@@ -159,127 +267,29 @@ app.post("/oauth/token", async (c) => {
     }
     authCodes.delete(code);
 
+    // Return the user's API key as the access token
     return c.json({
-      access_token: env.MCP_API_KEY,
+      access_token: codeData.apiKey,
       token_type: "bearer",
       expires_in: 3600,
-      refresh_token: env.MCP_API_KEY,
+      refresh_token: codeData.apiKey,
     });
   }
 
   if (grantType === "refresh_token") {
+    // The refresh_token IS the API key — return it unchanged
+    const refreshToken = body.refresh_token;
+    if (!refreshToken) return c.json({ error: "invalid_request" }, 400);
+
     return c.json({
-      access_token: env.MCP_API_KEY,
+      access_token: refreshToken,
       token_type: "bearer",
       expires_in: 3600,
-      refresh_token: env.MCP_API_KEY,
+      refresh_token: refreshToken,
     });
   }
 
   return c.json({ error: "unsupported_grant_type" }, 400);
-});
-
-// ============================================================
-// One-Time Google Setup (saves credentials to volume)
-// ============================================================
-
-app.get("/setup", (c) => {
-  const env = getEnv();
-
-  const scopes = [
-    "email",
-    "profile",
-    "https://www.googleapis.com/auth/tagmanager.manage.accounts",
-    "https://www.googleapis.com/auth/tagmanager.edit.containers",
-    "https://www.googleapis.com/auth/tagmanager.delete.containers",
-    "https://www.googleapis.com/auth/tagmanager.edit.containerversions",
-    "https://www.googleapis.com/auth/tagmanager.manage.users",
-    "https://www.googleapis.com/auth/tagmanager.publish",
-    "https://www.googleapis.com/auth/tagmanager.readonly",
-  ];
-
-  const authorizeUrl = getUpstreamAuthorizeUrl({
-    upstreamUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    scope: scopes.join(" "),
-    clientId: env.GOOGLE_CLIENT_ID,
-    redirectUri: `${env.HOST_URL}/setup/callback`,
-    hostedDomain: env.HOSTED_DOMAIN,
-    hasRefreshToken: false,
-  });
-
-  return Response.redirect(authorizeUrl);
-});
-
-app.get("/setup/callback", async (c) => {
-  const env = getEnv();
-  const code = c.req.query("code");
-
-  if (!code) {
-    return c.text("Missing code from Google", 400);
-  }
-
-  const [tokenResult, errResponse] = await fetchUpstreamAuthToken({
-    upstreamUrl: "https://oauth2.googleapis.com/token",
-    clientId: env.GOOGLE_CLIENT_ID,
-    clientSecret: env.GOOGLE_CLIENT_SECRET,
-    code,
-    redirectUri: `${env.HOST_URL}/setup/callback`,
-    grantType: "authorization_code",
-  });
-
-  if (errResponse) {
-    return errResponse;
-  }
-
-  const userResponse = await fetch(
-    "https://www.googleapis.com/oauth2/v2/userinfo",
-    { headers: { Authorization: `Bearer ${tokenResult?.access_token}` } },
-  );
-
-  if (!userResponse.ok) {
-    return c.text(
-      `Failed to fetch user info: ${await userResponse.text()}`,
-      500,
-    );
-  }
-
-  const { name, email } = (await userResponse.json()) as {
-    name: string;
-    email: string;
-  };
-
-  const credentials = {
-    accessToken: tokenResult.access_token,
-    refreshToken: tokenResult.refresh_token,
-    expiresAt: Math.floor(Date.now() / 1000) + (tokenResult.expires_in ?? 3600),
-    name,
-    email,
-    savedAt: new Date().toISOString(),
-  };
-
-  const credPath = getCredentialsFilePath();
-  const dir = path.dirname(credPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2));
-
-  return c.html(
-    renderPageLayout({
-      title: "Setup Complete - GTM MCP Server by Pragmatic Growth",
-      content: `
-      <h1>Setup Complete</h1>
-      <div class="success">
-        <p>Google credentials saved for <strong>${name}</strong> (${email})</p>
-        <p>Your MCP server is now ready to use.</p>
-      </div>
-      <h2>Connect with Claude.ai</h2>
-      <p>URL: <code>${env.HOST_URL}/mcp</code></p>
-      <p>Advanced settings &rarr; OAuth Client ID: <code>${env.OAUTH_CLIENT_ID}</code></p>
-      <p>Advanced settings &rarr; OAuth Client Secret: <code>${env.OAUTH_CLIENT_SECRET}</code></p>
-      `,
-    }),
-  );
 });
 
 // ============================================================
@@ -304,4 +314,4 @@ app.get("/terms", async () => {
   });
 });
 
-export { app as apisHandler, getCredentialsFilePath };
+export { app as apisHandler };
