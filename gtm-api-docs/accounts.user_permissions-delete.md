@@ -1,0 +1,5 @@
+# Method: user_permissions.delete  |  Tag Platform  |  Google for Developers
+
+Source: https://developers.google.com/tag-platform/tag-manager/api/reference/rest/v2/accounts.user_permissions/delete
+
+"Home\nProducts\nTag Platform\nTag Manager\nREST API\nWas this helpful?\nSend feedback\nMethod: user_permissions.delete\nOn this page\nHTTP request\nPath parameters\nRequest body\nResponse body\nAuthorization scopes\n\nFull name: accounts.user_permissions.delete\n\nRemoves a user from the account, revoking access to it and all of its containers.\n\nHTTP request\n\nDELETE https://tagmanager.googleapis.com/tagmanager/v2/{path}\n\nPath parameters\nParameters\npath\t\n\nstring\n\nGTM UserPermission's API relative path. It takes the form accounts/{account}/user_permissions/{user_permission}.\n\nRequest body\n\nThe request body must be empty.\n\nResponse body\n\nIf successful, the response body is an empty JSON object.\n\nAuthorization scopes\n\nRequires the following OAuth scope:\n\nhttps://www.googleapis.com/auth/tagmanager.manage.users\n\nFor more information, see the OAuth 2.0 Overview.\n\nWas this helpful?\nSend feedback"

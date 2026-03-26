@@ -1,0 +1,5 @@
+# Method: zones.get  |  Tag Platform  |  Google for Developers
+
+Source: https://developers.google.com/tag-platform/tag-manager/api/reference/rest/v2/accounts.containers.workspaces.zones/get
+
+"Home\nProducts\nTag Platform\nTag Manager\nREST API\nWas this helpful?\nSend feedback\nMethod: zones.get\n\nFull name: accounts.containers.workspaces.zones.get\n\nGets a GTM Zone.\n\nHTTP request\n\nGET https://tagmanager.googleapis.com/tagmanager/v2/{path}\n\nPath parameters\nParameters\npath\t\n\nstring\n\nGTM Zone's API relative path. It takes the form accounts/{account}/containers/{container}/workspaces/{workspace}/zones/{zone}.\n\nRequest body\n\nThe request body must be empty.\n\nResponse body\n\nIf successful, the response body contains an instance of Zone.\n\nAuthorization scopes\n\nRequires one of the following OAuth scopes:\n\nhttps://www.googleapis.com/auth/tagmanager.edit.containers\nhttps://www.googleapis.com/auth/tagmanager.readonly\n\nFor more information, see the OAuth 2.0 Overview.\n\nWas this helpful?\nSend feedback"

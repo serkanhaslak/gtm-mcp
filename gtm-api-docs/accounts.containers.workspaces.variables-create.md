@@ -1,0 +1,5 @@
+# Method: variables.create  |  Tag Platform  |  Google for Developers
+
+Source: https://developers.google.com/tag-platform/tag-manager/api/reference/rest/v2/accounts.containers.workspaces.variables/create
+
+"Home\nProducts\nTag Platform\nTag Manager\nREST API\nWas this helpful?\nSend feedback\nMethod: variables.create\nOn this page\nHTTP request\nPath parameters\nRequest body\nResponse body\nAuthorization scopes\n\nFull name: accounts.containers.workspaces.variables.create\n\nCreates a GTM Variable.\n\nHTTP request\n\nPOST https://tagmanager.googleapis.com/tagmanager/v2/{parent}/variables\n\nPath parameters\nParameters\nparent\t\n\nstring\n\nGTM Workspace's API relative path. It takes the form accounts/{account}/containers/{container}/workspaces/{workspace}.\n\nRequest body\n\nThe request body contains an instance of Variable.\n\nResponse body\n\nIf successful, the response body contains a newly created instance of Variable.\n\nAuthorization scopes\n\nRequires the following OAuth scope:\n\nhttps://www.googleapis.com/auth/tagmanager.edit.containers\n\nFor more information, see the OAuth 2.0 Overview.\n\nWas this helpful?\nSend feedback"

@@ -1,0 +1,5 @@
+# Method: environments.delete  |  Tag Platform  |  Google for Developers
+
+Source: https://developers.google.com/tag-platform/tag-manager/api/reference/rest/v2/accounts.containers.environments/delete
+
+"Home\nProducts\nTag Platform\nTag Manager\nREST API\nWas this helpful?\nSend feedback\nMethod: environments.delete\nOn this page\nHTTP request\nPath parameters\nRequest body\nResponse body\nAuthorization scopes\n\nFull name: accounts.containers.environments.delete\n\nDeletes a GTM Environment.\n\nHTTP request\n\nDELETE https://tagmanager.googleapis.com/tagmanager/v2/{path}\n\nPath parameters\nParameters\npath\t\n\nstring\n\nGTM Environment's API relative path. It takes the form accounts/{account}/containers/{container}/environments/{environment}.\n\nRequest body\n\nThe request body must be empty.\n\nResponse body\n\nIf successful, the response body is an empty JSON object.\n\nAuthorization scopes\n\nRequires the following OAuth scope:\n\nhttps://www.googleapis.com/auth/tagmanager.edit.containers\n\nFor more information, see the OAuth 2.0 Overview.\n\nWas this helpful?\nSend feedback"

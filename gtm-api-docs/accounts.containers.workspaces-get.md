@@ -1,0 +1,5 @@
+# Method: workspaces.get  |  Tag Platform  |  Google for Developers
+
+Source: https://developers.google.com/tag-platform/tag-manager/api/reference/rest/v2/accounts.containers.workspaces/get
+
+"Home\nProducts\nTag Platform\nTag Manager\nREST API\nWas this helpful?\nSend feedback\nMethod: workspaces.get\nOn this page\nHTTP request\nPath parameters\nRequest body\nResponse body\nAuthorization scopes\n\nFull name: accounts.containers.workspaces.get\n\nGets a Workspace.\n\nHTTP request\n\nGET https://tagmanager.googleapis.com/tagmanager/v2/{path}\n\nPath parameters\nParameters\npath\t\n\nstring\n\nGTM Workspace's API relative path. It takes the form accounts/{account}/containers/{container}/workspaces/{workspace}.\n\nRequest body\n\nThe request body must be empty.\n\nResponse body\n\nIf successful, the response body contains an instance of Workspace.\n\nAuthorization scopes\n\nRequires one of the following OAuth scopes:\n\nhttps://www.googleapis.com/auth/tagmanager.edit.containers\nhttps://www.googleapis.com/auth/tagmanager.readonly\n\nFor more information, see the OAuth 2.0 Overview.\n\nWas this helpful?\nSend feedback"
