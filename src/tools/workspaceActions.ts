@@ -50,7 +50,7 @@ export const workspaceActions = (
 ): void => {
   server.tool(
     "gtm_workspace",
-    `Performs various workspace operations including create, get, list, update, remove, createVersion, getStatus, sync, quickPreview, and resolveConflict actions. The 'list' action returns up to ${ITEMS_PER_PAGE} items per page.`,
+    `Performs various workspace operations including create, get, list, update, remove, createVersion, getStatus, sync, quickPreview, resolveConflict, and bulkUpdate actions. The 'list' action returns up to ${ITEMS_PER_PAGE} items per page.`,
     {
       action: z
         .enum([
@@ -64,9 +64,10 @@ export const workspaceActions = (
           "sync",
           "quickPreview",
           "resolveConflict",
+          "bulkUpdate",
         ])
         .describe(
-          "The workspace operation to perform. Must be one of: 'create', 'get', 'list', 'update', 'remove', 'createVersion', 'getStatus', 'sync', 'quickPreview', 'resolveConflict'.",
+          "The workspace operation to perform. Must be one of: 'create', 'get', 'list', 'update', 'remove', 'createVersion', 'getStatus', 'sync', 'quickPreview', 'resolveConflict', 'bulkUpdate'.",
         ),
       accountId: z
         .string()
@@ -100,6 +101,12 @@ export const workspaceActions = (
         .describe(
           "The status of the change for the entity in the workspace for 'resolveConflict' action. Possible values: 'added', 'modified', 'deleted', 'unmodified'.",
         ),
+      changes: z
+        .array(z.record(z.unknown()))
+        .optional()
+        .describe(
+          "Array of entity changes for 'bulkUpdate' action. Each item must include 'changeStatus' ('added', 'deleted', or 'updated') and exactly one entity type (tag, trigger, variable, folder, client, transformation, zone, customTemplate, builtInVariable, or gtagConfig) with its full resource data.",
+        ),
       page: z
         .number()
         .min(1)
@@ -125,6 +132,7 @@ export const workspaceActions = (
       fingerprint,
       entity,
       changeStatus,
+      changes,
       page,
       itemsPerPage,
     }): Promise<CallToolResult> => {
@@ -135,6 +143,48 @@ export const workspaceActions = (
       );
 
       try {
+        // Handle bulkUpdate separately — googleapis doesn't expose this endpoint
+        if (action === "bulkUpdate") {
+          if (!workspaceId) {
+            throw new Error(`workspaceId is required for ${action} action`);
+          }
+
+          if (!changes || changes.length === 0) {
+            throw new Error(
+              `changes array is required and must not be empty for ${action} action`,
+            );
+          }
+
+          const bulkUpdateUrl = `https://tagmanager.googleapis.com/tagmanager/v2/accounts/${accountId}/containers/${containerId}/workspaces/${workspaceId}/bulk_update`;
+
+          const bulkResponse = await fetch(bulkUpdateUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${props.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ changes }),
+          });
+
+          if (!bulkResponse.ok) {
+            const errorBody = await bulkResponse.text();
+            throw new Error(
+              `bulk_update failed with status ${bulkResponse.status}: ${errorBody}`,
+            );
+          }
+
+          const bulkData = await bulkResponse.json();
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(bulkData, null, 2),
+              },
+            ],
+          };
+        }
+
         const tagmanager = await getTagManagerClient(props);
 
         switch (action) {
