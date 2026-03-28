@@ -88,7 +88,8 @@ Required in Railway service or `.dev.vars`:
 ## Deployment
 
 - Push to `main` triggers Railway auto-deploy
-- Railway project with volume mounted at `/data`
+- Railway project: **Pragmatic Growth** (ID: `3b6ad004-8cff-41fc-a408-6d8d9c035c4d`)
+- Railway service: `gtm-mcp` with volume mounted at `/data`
 - Per-user credentials stored at `/data/users/<apiKey>.json`
 - Domain: `gtm-mcp.pragmaticgrowth.com` (DNS through Cloudflare)
 - Cloudflare WAF blocks some paths (e.g., `/token`, `/terms` and `/service-terms`) — use `/oauth/token` and `/service-terms`

@@ -1,9 +1,8 @@
 {
   "mcpServers": {
-    "gtm-mcp-local": {
-      "type": "stdio",
+    "google-tag-manager": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8788/mcp"]
+      "args": ["-y", "mcp-remote", "https://gtm-mcp.pragmaticgrowth.com/mcp"]
     },
     "railway": {
       "command": "npx",
