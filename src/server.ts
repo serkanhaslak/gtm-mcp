@@ -99,6 +99,8 @@ interface McpSession {
   transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
   lastActivity: number;
+  props: McpAgentPropsModel;
+  apiKey: string;
 }
 
 const sessions = new Map<string, McpSession>();
@@ -163,6 +165,14 @@ app.all("/mcp", async (c) => {
   if (sessionId && sessions.has(sessionId)) {
     const session = sessions.get(sessionId)!;
     session.lastActivity = Date.now();
+
+    // Refresh Google token if needed (props is mutable, tool handlers see updates)
+    const freshCreds = await getValidUserCredentials(session.apiKey);
+    if (freshCreds) {
+      session.props.accessToken = freshCreds.accessToken;
+      session.props.expiresAt = freshCreds.expiresAt;
+    }
+
     return session.transport.handleRequest(c.req.raw);
   }
 
@@ -180,6 +190,8 @@ app.all("/mcp", async (c) => {
         transport,
         server: mcpServer,
         lastActivity: Date.now(),
+        props,
+        apiKey,
       });
       log(`New MCP session: ${sid} (${creds.name} <${creds.email}>)`);
     },
