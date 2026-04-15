@@ -105,7 +105,7 @@ interface McpSession {
 
 const sessions = new Map<string, McpSession>();
 
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 
 const sessionCleanup = setInterval(
   () => {
@@ -162,8 +162,24 @@ app.all("/mcp", async (c) => {
   // Check for existing session
   const sessionId = c.req.header("mcp-session-id");
 
-  if (sessionId && sessions.has(sessionId)) {
-    const session = sessions.get(sessionId)!;
+  if (sessionId) {
+    const session = sessions.get(sessionId);
+    if (!session) {
+      // Client has a stale session ID (e.g. after server restart). Return 404
+      // with a JSON-RPC error so the client drops the cached ID and re-initializes.
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "Session not found — please re-initialize",
+          },
+          id: null,
+        },
+        404,
+      );
+    }
+
     session.lastActivity = Date.now();
 
     // Refresh Google token if needed (props is mutable, tool handlers see updates)
@@ -176,7 +192,7 @@ app.all("/mcp", async (c) => {
     return session.transport.handleRequest(c.req.raw);
   }
 
-  // For GET without valid session
+  // No session ID — only POST (initialize) is valid at this point
   if (c.req.method === "GET") {
     return c.json({ error: "No valid session" }, 405);
   }
